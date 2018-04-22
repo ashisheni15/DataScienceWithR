@@ -34,66 +34,66 @@ head(test)
 dim(train)
 dim(test)
 
-#check the variables and their types in train & test
-str(train)
+#check the variables and their types in train 
 str(test)
 
-# brief summary of train & test
+# brief summary of train
 summary(train)
-summary(test)
 
 # Cleaning and pre-processing the data for modeling
-#We'll need to combine the train and test data
-#We need to add a missing column in the test data
+# We'll need to combine the train and test data
+# We need to add a missing column in the test data
 
 test$Item_Outlet_Sales <- 0
 
 #Combining the test and train for treating the missing values
 dataset <- rbind(train, test)
 
-colSums(is.na(dataset))
+##############################################
+#
+#Analysing the different levels of fat contents
+#
+##############################################
 
-
+table(dataset$Item_Fat_Content)
 levels(dataset$Item_Fat_Content)
-# "LF"      "low fat" "Low Fat" "reg"     "Regular"
+
+#By looking the levels, we can conclude that
+# 'LF', 'low fat', 'Low Fat' are the same
+# 'reg','Regular' both are same
+
 dataset$Item_Fat_Content <- revalue(dataset$Item_Fat_Content,
-                                    c(
-                                      "LF" = "Low Fat",
-                                      "low fat" = "Low Fat",
-                                      "reg" = "Regular"
-                                    ))
+                                    c("LF" = "Low Fat","low fat" = "Low Fat","reg" = "Regular"))
 
+#Counting the fat content for each item
 
-fat <- as.data.frame(setNames(
-  aggregate(
-    dataset$Item_Fat_Content,
-    by = list(
-      Category = dataset$Item_Type,
-      Category = dataset$Item_Fat_Content
-    ),
-    FUN = length
-  ),
-  c("Item_Type", "Item_Fat_Content", "number")
-))
+fat <- as.data.frame(setNames(aggregate(dataset$Item_Fat_Content,
+                                        by = list(Category = dataset$Item_Type,
+                                                  Category = dataset$Item_Fat_Content),
+                                        FUN = length),
+                              c("Item_Type", "Item_Fat_Content", "number")))
 fat
 
+# Looking at the data we can say that fat content is also assigned to the non-food items
+# which is of no sense. So we will introduce a new level of "None" for those items
+
+levels(dataset$Item_Fat_Content) <- c(levels(dataset$Item_Fat_Content), "None")
 
 
-levels(dataset$Item_Fat_Content) <-
-  c(levels(dataset$Item_Fat_Content), "None")
-
-
-table(dataset$Item_Type)
-
-dataset[which(dataset$Item_Type == "Health and Hygiene"), ]$Item_Fat_Content <-
-  "None"
-dataset[which(dataset$Item_Type == "Household"), ]$Item_Fat_Content <-
-  "None"
-dataset[which(dataset$Item_Type == "Others"), ]$Item_Fat_Content <-
-  "None"
+dataset[which(dataset$Item_Type == "Health and Hygiene"), ]$Item_Fat_Content <- "None"
+dataset[which(dataset$Item_Type == "Household"), ]$Item_Fat_Content <- "None"
+dataset[which(dataset$Item_Type == "Others"), ]$Item_Fat_Content <- "None"
 
 dataset$Item_Fat_Content <- factor(dataset$Item_Fat_Content)
 str(dataset)
+
+#Again Counting the fat content for each item
+fat <- as.data.frame(setNames(aggregate(dataset$Item_Fat_Content,
+                                        by = list(Category = dataset$Item_Type,
+                                                  Category = dataset$Item_Fat_Content),
+                                        FUN = length),
+                              c("Item_Type", "Item_Fat_Content", "number")))
+fat
 
 
 #> levels(dataset$Outlet_Size)
