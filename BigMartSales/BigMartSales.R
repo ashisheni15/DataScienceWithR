@@ -17,7 +17,7 @@ library(corrplot)
 # we'll use plyr and dplyr to manipulate the data
 library(plyr)
 library(dplyr)
-library("mice")
+library(mice)
 
 #we'll use caTools for splitting the training data to test and train the model
 library(caTools)
@@ -254,7 +254,7 @@ ggplot(dataset[1:nrow(train),], aes(x = Outlet_Type, y = Item_Outlet_Sales, fill
   ylab("Sales") + 
   ggtitle("Sales vs Outlet type")
 
-# count the number of others per Outlet_Identifier and Outlet_Type
+# count the number of outlet per Outlet_Identifier ,Outlet_Type & Location
 otherOutlet <- as.data.frame( setNames(
   aggregate(
     dataset$Outlet_Size, 
@@ -282,19 +282,79 @@ table(dataset$Outlet_Size)
 #Now we will remove the other level
 dataset$Outlet_Size <- factor(dataset$Outlet_Size)
 
+#########################################################################
 # There are number of data in the item_visibility is 0 which is certainly wrong
 #we will impute those 0 with NA and then treat them for visibility
-
+#############################################################################
 
 table(dataset$Item_Visibility)
 dataset[which(dataset$Item_Visibility == 0),]$Item_Visibility <- NA
 
 
-#any missing values now?
-table(is.na(dataset))
-colSums(is.na(dataset))
+# boxplot of Visibility vs Item type
+ggplot(dataset, aes(Item_Type, Item_Visibility, fill = Outlet_Size)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, color = "black")) + 
+  xlab("Item Type") + 
+  ylab("Item Visibility") + 
+  ggtitle("Item visibility vs Item Type")
+
+# boxplot of Visibility vs. Outlet Identifier
+ggplot(dataset, aes(Outlet_Identifier, Item_Visibility)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, color = "black")) + 
+  xlab("Outlet_Identifier") + 
+  ylab("Item Visibility") + 
+  ggtitle("Item visibility vs Outlet identifier")
+
 
 TotVis <- as.data.frame(setNames(
-  aggregate(dataset$Item_Visibility, by=list(Category=dataset$Outlet_Identifier), FUN=sum),
+  aggregate(na.omit(dataset)$Item_Visibility, by=list(Category=na.omit(dataset)$Outlet_Identifier), FUN=sum),
   c("Outlet_Identifier", "TotVis")))
+
+TotVis
+
+#Creating a new subset for predicting the item visibility based on 
+#the regression model
+
+newdata <- na.omit(dataset)
+newdata <- select(newdata,-c(Item_Outlet_Sales))
+newdata.test <- select(newdata.test,-c(Item_Outlet_Sales))
+newdata.test <- subset(dataset,is.na(Item_Visibility))
+
+names(newdata)
+
+model.item <-
+  lm(
+    Item_Visibility ~ Item_Identifier + Item_Weight + Item_Fat_Content +
+      Item_Type + Item_MRP + Outlet_Identifier + Outlet_Size +
+      Outlet_Location_Type + Outlet_Type + Year + MRP_Category,
+    data = newdata
+  )
+
+pred <- predict(model.item, newdata = newdata.test)
+
+newdata.test$Item_Visibility <- pred
+##########################################################
+#Inputing the missing values with the predicted value
+##########################################################
+
+outind <- levels(newdata.test$Outlet_Identifier)
+itemind <- levels(newdata.test$Item_Identifier)
+
+for(out in outind){
+  for(item in itemind){
+    dataset[which(dataset$Item_Identifier == item &
+                    dataset$Outlet_Identifier == out),]$Item_Visibility <- 
+      ifelse(is.na(dataset[which(dataset$Item_Identifier == item &
+                                   dataset$Outlet_Identifier == out),]$Item_Visibility),
+             newdata.test[which(newdata.test$Item_Identifier == item &
+                                  newdata.test$Outlet_Identifier == out),]$Item_Visibility,
+             dataset[which(dataset$Item_Identifier == item &
+                             dataset$Outlet_Identifier == out),]$Item_Visibility)
+  }
+}
+
+dataset$Item_Visibility <- abs(dataset$Item_Visibility)
+
 
