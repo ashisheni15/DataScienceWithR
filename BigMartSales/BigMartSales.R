@@ -319,7 +319,6 @@ TotVis
 
 newdata <- na.omit(dataset)
 newdata <- select(newdata,-c(Item_Outlet_Sales))
-newdata.test <- select(newdata.test,-c(Item_Outlet_Sales))
 newdata.test <- subset(dataset,is.na(Item_Visibility))
 
 names(newdata)
@@ -357,4 +356,151 @@ for(out in outind){
 
 dataset$Item_Visibility <- abs(dataset$Item_Visibility)
 
+###################################################
+##Making the Item_visibility 100% per outlet
+##################################################
+outNameind <- levels(dataset$Outlet_Identifier)
+for (outName in outNameind) {
+  dataset[ which(dataset$Outlet_Identifier == outName),]$Item_Visibility <-
+    dataset[ which(dataset$Outlet_Identifier == outName),]$Item_Visibility *
+    100/TotVis[ which(TotVis$Outlet_Identifier == outName),]$TotVis
+}
 
+TotVis <- as.data.frame(setNames(
+  aggregate(na.omit(dataset)$Item_Visibility, by=list(Category=na.omit(dataset)$Outlet_Identifier), FUN=sum),
+  c("Outlet_Identifier", "TotVis")))
+
+TotVis
+
+##############################################################################
+#
+#
+#
+##############################################################################
+
+ggplot(dataset[1:nrow(train),],aes(x=Item_Type , y= Item_Outlet_Sales))+
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, color = "blue")) + 
+  xlab("Item type") + 
+  ylab("Sales") + 
+  ggtitle("Sales vs Item type")
+
+# We have a lots of outlier here, We can reduce it by dividing the sales by mrp
+
+dataset$Item_Outlet_Sales <- dataset$Item_Outlet_Sales/dataset$Item_MRP
+
+cor(dataset[1:nrow(train),][sapply(dataset[1:nrow(train),], is.numeric)])
+
+names(dataset)
+
+dataset <- select(dataset,c(Item_Identifier,      
+                            Item_Weight,     
+                            Item_Fat_Content,
+                            Item_Visibility,     
+                            Item_Type,            
+                            Item_MRP,             
+                            Outlet_Identifier,
+                            Outlet_Size,   
+                            Outlet_Location_Type,
+                            Outlet_Type,
+                            Year,       
+                            MRP_Category,
+                            Item_Outlet_Sales))
+
+train <- dataset[1:nrow(train),]
+test <- dataset[-(1:nrow(train)),]
+
+str(train)
+
+#model <- lm(Item_Outlet_Sales ~ Item_Identifier + Item_Weight + Item_Fat_Content +
+ #             Item_Visibility + Item_Type + Item_MRP + Outlet_Identifier +
+  #            Outlet_Size + Outlet_Location_Type + Outlet_Type + Year + MRP_Category ,
+   #         data = train)
+#summary(model)
+
+
+########################################################################3
+##########################################################################
+#Using Decision Tree (Score : 1244)
+##########################################################################
+library(rpart)
+library(rpart.plot)
+
+model.dt <- rpart(Item_Outlet_Sales ~ Item_Identifier + Item_Weight + Item_Fat_Content +
+                    Item_Visibility + Item_Type + Item_MRP + Outlet_Identifier +
+                    Outlet_Size + Outlet_Location_Type + Outlet_Type + Year + MRP_Category ,
+                   data = train)
+summary(model.dt)
+
+rpart.plot(model.dt)
+
+pred <- predict(model.dt, newdata = test)
+test$Item_Outlet_Sales <- pred
+
+test$Item_Outlet_Sales <- test$Item_Outlet_Sales* test$Item_MRP
+
+
+solution <- test[,c("Item_Identifier","Outlet_Identifier","Item_Outlet_Sales")]
+
+
+write.csv(solution,file = "Solution.csv",row.names = FALSE)
+####################################################################
+####################################################################
+#Using Random forest (Score : 1166.9)
+##########################################################################
+library(randomForest)
+
+model.rf <- randomForest(Item_Outlet_Sales ~ Item_Weight + Item_Fat_Content +
+                           Item_Visibility + Item_Type + Item_MRP + Outlet_Identifier +
+                           Outlet_Size + Outlet_Location_Type + Outlet_Type + Year + MRP_Category ,
+                         data = train, ntree=100)
+
+pred <- predict(model.rf, newdata = test)
+
+test$Item_Outlet_Sales <- pred
+
+test$Item_Outlet_Sales <- test$Item_Outlet_Sales* test$Item_MRP
+
+
+solution <- test[,c("Item_Identifier","Outlet_Identifier","Item_Outlet_Sales")]
+
+
+write.csv(solution,file = "Solution_rf.csv",row.names = FALSE)
+
+####################################################################
+####################################################################
+
+
+###################################################################
+####Using Regression
+####################################################################
+####################################################################
+
+combi <- dataset
+str(combi)
+
+combi$Item_Fat_LF <- ifelse(combi$Item_Fat_Content=="Low Fat",1,0)
+combi$Item_Fat_Reg <- ifelse(combi$Item_Fat_Content=="Regular",1,0)
+
+combi<- select(combi,-c(Item_Fat_Content))
+combi.train <- combi[1:nrow(train),]
+combi.test <- combi[-(1:nrow(train)),]
+
+
+model.lm <- lm(Item_Outlet_Sales ~ Item_Weight + 
+                 Item_MRP + Outlet_Identifier,
+               data = combi.train)
+summary(model.lm)
+
+pred<- predict(model.lm, newdata =test )
+
+
+test$Item_Outlet_Sales <- pred
+
+test$Item_Outlet_Sales <- test$Item_Outlet_Sales* test$Item_MRP
+
+
+solution <- test[,c("Item_Identifier","Outlet_Identifier","Item_Outlet_Sales")]
+
+
+write.csv(solution,file = "Solution_reg_2.csv",row.names = FALSE)
