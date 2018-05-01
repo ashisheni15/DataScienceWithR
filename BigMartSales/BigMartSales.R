@@ -501,6 +501,4 @@ test$Item_Outlet_Sales <- test$Item_Outlet_Sales* test$Item_MRP
 
 
 solution <- test[,c("Item_Identifier","Outlet_Identifier","Item_Outlet_Sales")]
-
-
 write.csv(solution,file = "Solution_reg_2.csv",row.names = FALSE)
